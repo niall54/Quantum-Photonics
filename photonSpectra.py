@@ -234,7 +234,8 @@ class QuantumComb:
                 self.spectraMax.append(self.rho*self.power**2/
                                        (etaL**2-self.power**2)) # Eq 67
             
-            self.kappa = (3e8/1550e-9)/(2*self.Q) # Calculate linewidth
+            self.kappa = (2*np.pi*3e8/
+                          1550e-9)/(2*self.Q) # Calculate linewidth
             Rout = (self.rho*self.kappa*(self.kappa**2*self.power**2)/
                     (self.kappa**2*(1-self.power**2+etaL**2))) # Eq 76
             self.Ns.append(Rout)

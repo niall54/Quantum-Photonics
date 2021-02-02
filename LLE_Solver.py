@@ -103,6 +103,7 @@ class LLE_Solver:
         self.fExt = self.Pin**0.5 # Input field
         self.fExt_CP = self.fExt # CP input field
         self.psi0 = 0.8*np.array([1]*self.N) # Initialise the cavity field
+        self.psi0 = 5/(1+self.theta)
         self.psi = self.psi0
         
     def updateParameter(self,**params):
@@ -317,6 +318,5 @@ def load_previous(filename):
     return x
         
 if __name__ == '__main__':
-    x = LLE_Solver()
-    x.runSimulation(updateParams = {'alpha':[-5,5]})
-        
+    x = LLE_Solver(alpha=3.335)
+    x.runSimulation(tauMax = 1000)

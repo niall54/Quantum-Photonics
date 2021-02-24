@@ -8,9 +8,10 @@ Created on Fri Aug  7 14:09:46 2020
 import cv2
 import os
 
-video_name = 'video.mp4'
+video_name = 'video2.mp4'
+fileprefix = '20210218_1515'
+images = [img for img in os.listdir() if img.endswith(".png") and img.startswith(fileprefix)]
 
-images = [img for img in os.listdir() if img.endswith(".png")]
 frame = cv2.imread( images[0])
 height, width, layers = frame.shape
 

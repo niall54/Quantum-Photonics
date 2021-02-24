@@ -15,7 +15,8 @@ class LLE_Solver:
                  htau = 0.0002,
                  alpha = 3,
                  beta = -0.005,
-                 Pin = 2.7):
+                 Pin = 2.7,
+                 psi0 = None):
         """
         This object gives a solver for the Lugiato-Lefever equation (LLE). It
         takes "real-world" values for resonator parameters and converts them
@@ -102,8 +103,10 @@ class LLE_Solver:
         self.tau = 0.0 # Simulation dimensionless time
         self.fExt = self.Pin**0.5 # Input field
         self.fExt_CP = self.fExt # CP input field
-        self.psi0 = 0.8*np.array([1]*self.N) # Initialise the cavity field
-        self.psi0 = 5/(1+self.theta)
+        if psi0 is None:
+            self.psi0 = 0.8*np.array([1]*self.N) # Initialise the cavity field
+        else:
+            self.psi0 = psi0
         self.psi = self.psi0
         
     def updateParameter(self,**params):
@@ -134,7 +137,7 @@ class LLE_Solver:
                       addRand = True,
                       updateParams = None,
                       saveData = True,
-                      saveRate = 10000):
+                      saveRate = 100):
         """
         This method runs a simulation using the current object properties. A
         sweep - e.g. of the input frequency to simulate a frequency sweep 
@@ -318,5 +321,9 @@ def load_previous(filename):
     return x
         
 if __name__ == '__main__':
-    x = LLE_Solver(alpha=3.335)
-    x.runSimulation(tauMax = 1000)
+    import matplotlib as mpl
+    mpl.rcParams['figure.dpi'] = 300
+    
+    x = load_previous('data/LLE/20210218_1515_43663.pkl')
+    x.runSimulation(addRand=False)
+    

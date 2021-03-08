@@ -93,7 +93,7 @@ class LLE_Solver:
         #=====================================================================
         # Simulation calculated parameters
         self.iter = 0 # Iteration count
-        self.dtheta = 2*np.pi/self.N # Angle step, rad
+        self.dtheta = 2*np.pi/(self.N) # Angle step, rad
         self.theta = np.linspace(-np.pi,np.pi,self.N) # Set of angles
         self.ell = np.arange(-self.N/2,self.N/2) # Set of eigennumbers
         self.ell2 = self.ell**2 # Squared eigennumbers
@@ -323,7 +323,7 @@ def load_previous(filename):
 if __name__ == '__main__':
     import matplotlib as mpl
     mpl.rcParams['figure.dpi'] = 300
-    
-    x = load_previous('data/LLE/20210218_1515_43663.pkl')
-    x.runSimulation(addRand=False)
+    psi0=np.load('deleteMe.npy')
+    x = LLE_Solver(Pin=4, alpha=3.5, beta=0.002, psi0=psi0[0:-1])
+    x.runSimulation(addRand=True)
     

@@ -13,13 +13,13 @@ class QuantumFlux:
         self.input_filename = input_filename
         self.input_dir = input_dir
         self.LLE_Soln = load_previous(self.input_dir+self.input_filename)
-        
+        self.g0 = 1 # Need to update this!
         # Calculate the quantum fluctuation parameters
         self.calculateParams()
         
     def calculateParams(self):
         self.N_lle = int(self.LLE_Soln.N/2) # Number of LLE modes calculated
-        self.N = 4*self.N_lle + 2 # Number of quadratures to be calculated
+        self.N = 4*self.N_lle # Number of quadratures to be calculated
         self.makeBetas() # Make the effective detuning vector, Beta
         self.makeDiffMatrix() # Make the diffusion matrix, D
         self.makeCouplingMatrix() # Make the matrix, M
@@ -37,9 +37,8 @@ class QuantumFlux:
         # I just use int() for the sumValComplex without taking into account
         # whether the (a+1)/2 index should just be a/2
         ######################################################################
-        self.M = np.zeros((self.N,self.N),dtype=complex)
+        self.M = np.zeros((self.N,self.N),dtype=float)
         self.alpha = self.LLE_Soln.psi_f
-        
         
         for i in range(self.N):
             print('\rRunning simulation: {:.2f}%'.format(100*i/self.N),
@@ -48,56 +47,69 @@ class QuantumFlux:
             for j in range(self.N):
                 # Matrix element m_ij in which (i+1) is the row number and 
                 # (j+1) is the column number.
-                b = j+1 # Column number
+                b = j + 1 # Column number
                 m_ab = 0
+                
                 if a%2 == 1: # a is odd
                     if b == a:
-                        m_ab = np.real(self.Beta[int((a-1)/2)-1])
+                        m_ab = np.real(self.Beta[int((a+1)/2)-1])
+                        m_ab = 0
                     elif b == a+1:
-                        m_ab = 1.0j*np.imag(self.Beta[int((a-1)/2)-1])
+                        m_ab = -np.imag(self.Beta[int((a+1)/2)-1])
+                        m_ab = 0
                     else:
+                        sumValComplex = 0.0 + 0.0j
                         for d in range(0,2*self.N_lle+1):
-                            sumValComplex = 0.0 + 0.0j
                             try: 
-                                sumValComplex = (np.transpose(self.alpha[d])*
+                                _= (np.transpose(self.alpha[d])*
                                                   np.transpose(
-                                                      self.alpha[int(
-                                                          (a+b)/2-d)])
+                                                      self.alpha[int(a/2)+
+                                                                 int((b+1)/2)
+                                                                 -d])
                                                   -2*np.transpose(
                                                       self.alpha[d])*
-                                                  self.alpha[int((a-b)/2)+d])
+                                                  self.alpha[int(a/2)-int(
+                                                      (b+1)/2)+d])
+                                sumValComplex += 1+1.0j
+                                
                             except IndexError:
                                 _ = True # The a,b,d indices are not a valid 
                                           # set
-                            if b%2 == 1: # b is odd
-                                m_ab += np.imag(sumValComplex)
-                            else: #b is even
-                                m_ab += 1.0j*np.real(sumValComplex)
+                        if b%2 == 1: # b is odd
+                            m_ab = self.g0*np.real(sumValComplex)
+                        else: #b is even
+                            m_ab = self.g0*np.imag(sumValComplex)
+                            
                 else: # a is even
                     if b == a:
-                        m_ab = np.real(self.Beta[int((a-1)/2)-1])
+                        m_ab = -np.imag(self.Beta[int(a/2)-1])
+                        m_ab = 0
                     elif b == a-1:
-                        m_ab = -1.0j*np.imag(self.Beta[int((a-1)/2)-1])
+                        m_ab = np.real(self.Beta[int(a/2)-1])
+                        m_ab = 0
                     else:
-                        for d in range(-self.N_lle,self.N_lle+1):
-                            sumValComplex = 0.0 + 0.0j
+                        sumValComplex = 0.0 + 0.0j
+                        for d in range(0,2*self.N_lle+1):
                             try: 
-                                sumValComplex = (np.transpose(self.alpha[d])*
-                                                  np.transpose(
+                                _= (self.alpha[d]*
                                                       self.alpha[int(
-                                                          a+b/2-d)])
+                                                          (a+1)/2)+int((b+1)
+                                                                       /2)-d]
                                                   -2*np.transpose(
                                                       self.alpha[d])*
-                                                  self.alpha[int(a-b/2)+d])
+                                                  self.alpha[int((a+1)/2)-
+                                                                  int((b+1)/2)
+                                                                  +d])
+                                                                       
+                                sumValComplex+=1+1.0j
                             except IndexError:
                                 _ = True # The a,b,d indices are not a valid 
                                           # set
                             
-                            if b%2 == 1: # b is odd
-                                m_ab += 1.0j*np.real(sumValComplex)
-                            else: #b is even
-                                m_ab += -np.imag(sumValComplex)
-                
+                        if b%2 == 1: # b is odd
+                            m_ab = self.g0*np.imag(sumValComplex)
+                        else: #b is even
+                            m_ab = self.g0*np.real(-sumValComplex)
                 
                 self.M[i][j] = m_ab
                 
@@ -114,5 +126,8 @@ class QuantumFlux:
             
 if __name__ == '__main__':
     filename = 'SingleSoliton_256.pkl'
-    x = load_previous('data/Quantum Flux/'+filename)
+    x = QuantumFlux(input_filename = filename)
     
+    fig = plt.figure(dpi=500,figsize=(20,20))
+    ax = fig.add_subplot(111)
+    ax.imshow(x.M)

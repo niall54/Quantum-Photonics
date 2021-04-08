@@ -1,6 +1,7 @@
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.linalg import solve_lyapunov
 from LLE_Solver import *
 
 class QuantumFlux:
@@ -116,18 +117,39 @@ class QuantumFlux:
         self.save_self(filename = 'data/Quantum Flux/'+self.input_filename)
     
     def makeCorrelationMatrix(self):
-        I_k = np.eye(len(self.M))
-        vecD = self.D.flatten('F')
-        vecV = np.kron(I_k,self.M)
-    
+        print('Solving Lyuapanov Equation')
+        self.V = solve_lyapunov(self.M, self.D)
+        self.save_self(filename = 'data/Quantum Flux/'+self.input_filename)
+        
+    def makeLogarithmicNegativityMatrix(self):
+        self.E = np.zeros((self.N_lle,self.N_lle),dtype=float)
+        for i in range(self.N_lle):
+            for j in range(self.N_lle):
+                ## Check indexing for the A, B, C submatrices etc!!
+                A = self.V[2*i:2*i+2,2*i:2*i+2]
+                B = self.V[2*j:2*j+2,2*j:2*j+2]
+                C = self.V[2*i:2*i+2,2*j:2*j+2]
+                C_t = self.V[2*j:2*j+2,2*i:2*i+2] # should be transpose of C!
+                
+                theta = (np.linalg.det(A) + np.linalg.det(B) 
+                         - 2*np.linalg.det(C))
+                V1 = np.concatenate((A,C),axis=1)
+                V2 = np.concatenate((C_t,B),axis=1)
+                V = np.concatenate((V1,V2),axis=0)
+                eta = np.sqrt(theta - np.sqrt(theta**2 - 4*np.linalg.det(V)))
+                self.E[i][j] = np.max([0,-np.log(eta*2**0.5)])
+                
+        print('Done')
+        
     def save_self(self, filename):
         with open(filename, 'wb') as output:  # Overwrites any existing file.
             pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
             
 if __name__ == '__main__':
     filename = 'SingleSoliton_256.pkl'
-    x = QuantumFlux(input_filename = filename)
-    
-    fig = plt.figure(dpi=500,figsize=(20,20))
+    # x = QuantumFlux(input_filename = filename)
+    x = pickle.load(open('data/Quantum Flux/'+filename,'rb'))
+    x.makeLogarithmicNegativityMatrix()
+    fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.imshow(x.M)
+    ax.imshow(x.E)

@@ -4,6 +4,29 @@ import matplotlib.pyplot as plt
 from scipy.linalg import solve_lyapunov
 from LLE_Solver import *
 
+
+def getValidIndices(I,J,N_lle):
+    valid1 = []
+    valid2 = []
+    valid3 = []
+    valid1_python = []
+    valid2_python = []
+    valid3_python = []
+    for C in range(-N_lle,N_lle+1):
+        K1 = I+J-C
+        K2 = I+C-J
+        K3 = J+C-I
+        if K1 in range(-N_lle,N_lle+1):
+            valid1.append([C,K1])
+            valid1_python.append([C+N_lle, K1+N_lle])
+        if K2 in range(-N_lle,N_lle+1):
+            valid2.append([C,K2])
+            valid2_python.append([C+N_lle, K2+N_lle])
+        if K3 in range(-N_lle,N_lle+1):
+            valid2.append([C,K3])
+            valid2_python.append([C+N_lle, K3+N_lle])
+    return valid1, valid2, valid3, valid1_python, valid2_python, valid3_python
+
 class QuantumFlux:
     def __init__(self,
                  input_filename = 'SingleSoliton.pkl',
@@ -96,10 +119,7 @@ class QuantumFlux:
         self.makeCouplingMatrix() # Make the matrix, M
         self.makeCorrelationMatrix() # Make the correlation matrix, V
         self.makeLogarithmicNegativityMatrix() # Make entanglement matrix, E
-        fig = plt.figure()
-        ax1 = fig.add_subplot(111)
-        plot = ax1.imshow(self.E,origin='lower')
-        fig.colorbar(plot, ax=ax1)
+        plt.imshow(self.E)
         
     def makeBetas(self):
         """
@@ -134,6 +154,93 @@ class QuantumFlux:
         """
         self.D = np.eye(self.N) * np.sqrt(2*self.LLE_Soln.dw0) # Noise matrix
         
+    def makeCouplingMatrix_orig(self):
+        """
+        This (sub-)method makes the M matrix of Eq. 4 of Ref_A, with a method
+        derived from Eq. 3 of Ref_A. This method is given in "Continuous 
+        Variable Entanglement.ipynb" under Quantum Fluctuations.
+
+        Returns
+        -------
+        Updated QuantumFlux object, with the M matrix parameter calculated.
+        
+        **********************************************************************
+        To-Do ****************************************************************
+        =====
+        - Confirm method derived from Eq. 3, Ref_A. Very fiddly and likely to
+        have either errors in the method itself, or typos in the subsequent 
+        code
+        - Check indexing. I'm currently using a (b) as the row (column) 
+        numbers, which each refer to the mode number i~a/2 (j~b/2) as there are
+        two rows (columns) for each mode due to there being two quardratures
+        for each. The int(a/2)-1 etc. might not be correct! Also check that we 
+        correctly run through the correct set of indices - might try this with
+        small matrices manually...!
+        **********************************************************************
+
+        """
+        self.M = np.zeros((self.N,self.N),dtype=float)
+        self.alpha = self.LLE_Soln.psi_f
+        Quads = ['X','Y']
+        
+        for i in range(self.N):
+            print('\rRunning simulation: {:.2f}%'.format(100*i/self.N),
+                  end="")
+            for j in range(self.N):
+                I = int(i/2) - self.N_lle # LLE mode number row
+                J = int(j/2) - self.N_lle # LLE mode number column
+                Quad_row = Quads[i%2] # Quadrature row (X or Y)
+                Quad_col = Quads[j%2] # Quadrature col (X or Y)
+                a = i + 1 # Index a from ipynb 
+                b = j + 1 # Index b from ipynb 
+                m_ab = 0
+                if a%2 != 0: # a is odd
+                    if b == a:
+                        m_ab  = np.real(self.Beta[I+self.N_lle])
+                    elif b == a+1:
+                        m_ab = -np.imag(self.Beta[I+self.N_lle])
+                    else:
+                        v1, v2, v3, v1p, v2p, v3p = getValidIndices(I,
+                                                                   J,
+                                                                   self.N_lle)
+                        for valid1 in v1p:
+                            C, D  = valid1
+                            m_ab += self.g0*(self.alpha[C]*self.alpha[D])
+                        for valid2 in v2p:
+                            C, D  = valid2
+                            m_ab += 2*self.g0*(self.alpha[C]*
+                                               np.conj(self.alpha[D]))
+                        if b%2 == 0:
+                            m_ab = np.imag(m_ab)
+                        else:
+                            m_ab = np.real(m_ab)
+                else: # a is even
+                    if b == a:
+                        m_ab = -np.imag(self.Beta[I+self.N_lle])
+                    elif b == a-1:
+                        m_ab  = np.real(self.Beta[I+self.N_lle])
+                    else:
+                        v1, v2, v3, v1p, v2p, v3p = getValidIndices(I,
+                                                                   J,
+                                                                   self.N_lle)
+                        for valid1 in v1p:
+                            C, D  = valid1
+                            m_ab += self.g0*(self.alpha[C]*self.alpha[D])
+                        for valid2 in v2p:
+                            C, D  = valid2
+                            m_ab -= 2*self.g0*(self.alpha[C]*
+                                               np.conj(self.alpha[D]))
+                        if b%2 == 0:
+                            m_ab = np.real(-m_ab)
+                        else:
+                            m_ab = np.imag(m_ab)
+                        
+                self.M[i][j] = m_ab
+                
+        # Save this object after a long calculation to avoid needless 
+        # repetition
+        self.save_self()
+        
     def makeCouplingMatrix(self):
         """
         This (sub-)method makes the M matrix of Eq. 4 of Ref_A, with a method
@@ -143,12 +250,26 @@ class QuantumFlux:
         Returns
         -------
         Updated QuantumFlux object, with the M matrix parameter calculated.
+        
+        **********************************************************************
+        To-Do ****************************************************************
+        =====
+        - Confirm method derived from Eq. 3, Ref_A. Very fiddly and likely to
+        have either errors in the method itself, or typos in the subsequent 
+        code
+        - Check indexing. I'm currently using a (b) as the row (column) 
+        numbers, which each refer to the mode number i~a/2 (j~b/2) as there are
+        two rows (columns) for each mode due to there being two quardratures
+        for each. The int(a/2)-1 etc. might not be correct! Also check that we 
+        correctly run through the correct set of indices - might try this with
+        small matrices manually...!
         **********************************************************************
 
         """
         self.alpha = self.LLE_Soln.psi_f
         N = len(self.alpha)
-        # This next removes the extra strength of the pump mode
+        print(N)
+        print(abs(self.alpha[int(N/2)-1:int(N/2)+2]))
         A = np.zeros((N,N))
         B = np.zeros((N,N))
         C = np.zeros((N,N))
@@ -177,7 +298,7 @@ class QuantumFlux:
                 A[I][J] += self.g0*(np.imag(sum1) - 2*np.imag(sum2))
                 B[I][J] -= self.g0*(np.real(sum1) - 2*np.real(sum2))
                 C[I][J] -= self.g0*(np.real(sum1) + 2*np.real(sum2))
-                D[I][J] -= self.g0*(np.imag(sum1) + 2*np.imag(sum2))
+                D[I][J] -= self.g0*(np.imag(sum1) - 2*np.imag(sum2))
                         
         self.A_ = A      
         self.B_ = B      
@@ -210,7 +331,7 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.V = solve_lyapunov(self.M, -self.D)
+        self.V = solve_lyapunov(self.M, self.D)
         self.save_self()
         
     def makeLogarithmicNegativityMatrix(self):
@@ -228,14 +349,15 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.E = np.zeros((self.N_lle*2+1,self.N_lle*2+1),dtype=float)
-        for i in range(self.N_lle*2+1):
-            for j in range(self.N_lle*2+1):
+        self.E = np.zeros((self.N_lle,self.N_lle),dtype=float)
+        for i in range(self.N_lle):
+            for j in range(self.N_lle):
                 ## Check indexing for the A, B, C submatrices etc!!
                 A = self.V[2*i:2*i+2,2*i:2*i+2]
                 B = self.V[2*j:2*j+2,2*j:2*j+2]
                 C = self.V[2*i:2*i+2,2*j:2*j+2]
                 C_t = self.V[2*j:2*j+2,2*i:2*i+2] # should be transpose of C!
+                
                 theta = (np.linalg.det(A) + np.linalg.det(B) 
                          - 2*np.linalg.det(C))
                 V1 = np.concatenate((A,C),axis=1)
@@ -243,8 +365,6 @@ class QuantumFlux:
                 V = np.concatenate((V1,V2),axis=0)
                 eta = np.sqrt(theta - np.sqrt(theta**2 - 4*np.linalg.det(V)))
                 self.E[i][j] = np.max([0,-np.log(eta*2**0.5)])
-                if self.E[i][j]<=0:
-                    self.E[i][j] = np.nan
         self.save_self()
         
     def save_self(self, filename=None):

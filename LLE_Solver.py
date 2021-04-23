@@ -249,7 +249,28 @@ class LLE_Solver:
                 savedIndex += 1
                 
             
-                
+    def plot_self(self,axs=None):
+        if axs is None:
+            fig = plt.figure()
+            fig.subplots_adjust(hspace=0.4)
+            ax_cavity  = fig.add_subplot(211)
+            ax_modes  = fig.add_subplot(212)
+            axs = [ax_cavity, ax_modes]
+        
+        ax_cavity, ax_modes = axs
+        
+        ax_cavity.plot(self.theta,
+                       np.abs(self.psi)**2,
+                       'k')
+        ax_cavity.set_xlabel('Longitudinal resonator position/rad')
+        ax_cavity.set_ylabel('Intracavity intensity')
+        
+        ax_modes.plot(self.ell,
+                      np.log(np.abs(self.psi_f)**2),
+                      'k')
+        ax_modes.set_xlabel('Mode number')
+        ax_modes.set_ylabel('Modal intensity, dB')
+        
     def save_self(self, filename):
         with open(filename, 'wb') as output:  # Overwrites any existing file.
             pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
@@ -323,7 +344,5 @@ def load_previous(filename):
 if __name__ == '__main__':
     import matplotlib as mpl
     mpl.rcParams['figure.dpi'] = 300
-    psi0=np.load('deleteMe.npy')
-    x = LLE_Solver(Pin=4, alpha=3.5, beta=0.002, psi0=psi0[0:-1])
-    x.runSimulation(addRand=True)
-    
+    x = load_previous('data/LLE/SingleSoliton.pkl')
+    x.plot_self()

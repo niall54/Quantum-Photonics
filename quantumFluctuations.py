@@ -119,10 +119,8 @@ class QuantumFlux:
         self.makeCouplingMatrix() # Make the matrix, M
         self.makeCorrelationMatrix() # Make the correlation matrix, V
         self.makeLogarithmicNegativityMatrix() # Make entanglement matrix, E
-        ######################################################################
-        # Delete me, just for checking stuff
-        self.checkDiagonals()
-        ######################################################################
+        self.plotResults()
+        
         
     def makeBetas(self):
         """
@@ -300,75 +298,42 @@ class QuantumFlux:
         with open(filename, 'wb') as output:  # Overwrites any existing file.
             pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
             
-    def checkDiagonals(self):
+    def plotResults(self,fig=None,axs = None):
         """
-        This just plots what would be expected for the A_, B_, C_ and D_ 
-        matrices based off a single pumped field to check for differences 
-        between the calculated versions
+        Simple plotter function, giving the cavity/modal intensities along 
+        with the entanglement matrix E
+
+        Parameters
+        ----------
+        fig : matplotlib.figure objects, optional
+            Figure for the data to be plotted to. The default is None,
+            with this code generating the figure itself.
+        axs : List of matplotlib.axis objects, optional
+            List of axes for the data to be plotted to. The default is None,
+            with this code generating the axes itself.
 
         Returns
         -------
         None.
 
         """
-        N = len(self.alpha)
-        alpha_0 = x.alpha[int(N/2)]
+        if axs is None:
+            fig = plt.figure()
+            fig.subplots_adjust(hspace=0.4)
+            gs = fig.add_gridspec(2,2)
+            ax1 = fig.add_subplot(gs[0,0])
+            ax2 = fig.add_subplot(gs[1,0])
+            ax3 = fig.add_subplot(gs[:,1])
+            axs = [ax1, ax2, ax3]
+        self.LLE_Soln.plot_self(axs=axs[0:2]) # Plot LLE solution results
         
-        A = np.zeros((N,N))
-        B = np.zeros((N,N))
-        C = np.zeros((N,N))
-        D = np.zeros((N,N))
+        E = ax3.imshow(self.E, origin='lower',
+                       extent=self.N_lle*np.array([-1,1,-1,1]))
+        cb = fig.colorbar(E,ax=ax3)
+        ax3.set_title('Entanglement Matrix, $E$')
         
-        for i in range(N):
-            A[i][i] += np.real(self.Beta[i])-2*self.g0*np.imag(alpha_0*alpha_0)
-            A[i][N-1-i] += self.g0*np.imag(alpha_0*alpha_0)
-            
-            B[i][i] += -np.imag(self.Beta[i])+2*self.g0*np.real(alpha_0*alpha_0)
-            B[i][N-1-i] += -self.g0*np.real(alpha_0*alpha_0)
-            
-            C[i][i] += np.imag(self.Beta[i])-2*self.g0*np.real(alpha_0*alpha_0)
-            C[i][N-1-i] += -self.g0*np.real(alpha_0*alpha_0)
-            
-            D[i][i] += np.real(self.Beta[i])-2*self.g0*np.imag(alpha_0*alpha_0)
-            D[i][N-1-i] += -self.g0*np.imag(alpha_0*alpha_0)
-            
-        letts = [A,B,C,D]
-        letts_ = [self.A_, self.B_, self.C_, self.D_]
         
-        fig = plt.figure()
-        for INDEX, let in enumerate(letts):
-            let_ = letts_[INDEX]
-            axlet = fig.add_subplot(4,3,1+INDEX*3)
-            axlet_ = fig.add_subplot(4,3,2+INDEX*3)
-            axDiff = fig.add_subplot(4,3,3+INDEX*3)
-            pltlet = axlet.imshow(let)
-            pltlet_ = axlet_.imshow(let_)
-            pltDiff = axDiff.imshow(let-let_)
-            fig.colorbar(pltDiff, ax=axDiff)
-            
-        fig2 = plt.figure()
-        ax2 = fig2.add_subplot(111)
-        E = ax2.imshow(self.E,origin='lower')
-        fig2.colorbar(E,ax=ax2)
         
-# def analyzeObject(filename = 'single_mode.pkl'):
-#     with open('data/quantum flux/'+filename,'rb') as input_:
-#         x = pickle.load(input_)
-        
-    
-#     i = 1
-#     j = 101
-    
-#     A = x.V[2*i:2*i+2,2*i:2*i+2]
-#     B = x.V[2*j:2*j+2,2*j:2*j+2]
-#     C = x.V[2*i:2*i+2,2*j:2*j+2]
-#     C_t = x.V[2*j:2*j+2,2*i:2*i+2]
-    
-#     for zz in [A,B,C]:
-#         print(zz,  np.linalg.det(zz))
-#     theta = np.linalg.det(A) + np.linalg.det(B) - 2*np.linalg.det(C)
-#     print(theta)
-    
 if __name__ == '__main__':
     filename = 'single_soliton_efficient.pkl'
     plt.close('all')

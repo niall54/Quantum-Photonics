@@ -1,4 +1,3 @@
-import os
 import pickle
 import datetime
 import numpy as np
@@ -12,9 +11,9 @@ class LLE_Solver:
                  n0 = 1.444,
                  Qext = 1.85e8/2,
                  Q0 = 1.85e8,
-                 N = 256,
+                 N = 1024,
                  htau = 0.0002,
-                 alpha = -3,
+                 alpha = 3,
                  beta = -0.005,
                  Pin = 2.7,
                  psi0 = None):
@@ -183,8 +182,7 @@ class LLE_Solver:
             timeInfo = datetime.datetime.now()
             prefix = 'data/LLE/'
             prefix += (timeInfo.strftime('%Y%m%d') + '_' 
-            +  timeInfo.strftime('%H%M') + '/') 
-            os.makedirs(prefix)
+            +  timeInfo.strftime('%H%M') + '_') 
             
             
         # ====================================================================
@@ -266,7 +264,7 @@ class LLE_Solver:
                        'k')
         ax_cavity.set_xlabel('Longitudinal resonator position/rad')
         ax_cavity.set_ylabel('Intracavity intensity')
-        ax_cavity.set_ylim([0,1.1*max(np.abs(self.psi)**2)])
+        
         ax_modes.plot(self.ell,
                       np.log(np.abs(self.psi_f)**2),
                       'k')
@@ -346,9 +344,9 @@ def load_previous(filename):
 if __name__ == '__main__':
     import matplotlib as mpl
     mpl.rcParams['figure.dpi'] = 300
-    
-    N = 256
-    ss = 14
-    x = LLE_Solver()
-    x.runSimulation(updateParams={'alpha':[-3,5]})
+    fname = 'SingleMode_Noisy.pkl'
+    x = load_previous('data/LLE/'+fname)
+    x.updateParameter(tau=0)
+    x.runSimulation(tauMax=5, addRand=False)
     x.plot_self()
+    x.save_self('data/LLE/SingleMode_noNoise.pkl')

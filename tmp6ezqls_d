@@ -1,4 +1,3 @@
-import os
 import pickle
 import datetime
 import numpy as np
@@ -14,7 +13,7 @@ class LLE_Solver:
                  Q0 = 1.85e8,
                  N = 256,
                  htau = 0.0002,
-                 alpha = -3,
+                 alpha = 3,
                  beta = -0.005,
                  Pin = 2.7,
                  psi0 = None):
@@ -183,8 +182,7 @@ class LLE_Solver:
             timeInfo = datetime.datetime.now()
             prefix = 'data/LLE/'
             prefix += (timeInfo.strftime('%Y%m%d') + '_' 
-            +  timeInfo.strftime('%H%M') + '/') 
-            os.makedirs(prefix)
+            +  timeInfo.strftime('%H%M') + '_') 
             
             
         # ====================================================================
@@ -348,7 +346,10 @@ if __name__ == '__main__':
     mpl.rcParams['figure.dpi'] = 300
     
     N = 256
-    ss = 14
-    x = LLE_Solver()
-    x.runSimulation(updateParams={'alpha':[-3,5]})
+    ss = 10
+    psi0_0 = np.array([0]*int((N-ss)/2))
+    psi0_1 = 2*np.array([1]*ss)
+    psi0 = np.append(np.append(psi0_0,psi0_1),psi0_0)
+    x = LLE_Solver(psi0=psi0,alpha=2.9,Pin=3,beta=-0.05)
+    x.runSimulation(tauMax=30,saveData=False,addRand=False)
     x.plot_self()

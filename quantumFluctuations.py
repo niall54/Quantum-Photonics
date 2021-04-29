@@ -24,12 +24,12 @@ class QuantumFlux:
 
         Parameters
         ----------
-        input_filename : TYPE, optional
+        input_filename : str, optional
             Filename for the saved LLE_Solver object. The default is
             'SingleSoliton.pkl'.
-        input_dir : TYPE, optional
+        input_dir : str, optional
             Directory of input_dir. The default is 'data/LLE/'.
-        output_dir : TYPE, optional
+        output_dir : str, optional
             Directory for saving this object to. The default is 
             'data/Quantum Flux/'.
 
@@ -53,9 +53,32 @@ class QuantumFlux:
         self.input_dir = input_dir
         self.LLE_Soln = load_previous(self.input_dir+self.input_filename)
         self.reduce_LLESoln() # Remove unwanted initial mode
-        self.g0 = self.LLE_Soln.dw0 # Need to update this!
+        self.get_g0()
+        # Chembo and Quantum Correlation papers
         # Set directory to save object info to
         self.output_dir = output_dir
+        
+    def get_g0(self,pThresh=1e-3):
+        """
+        This routine calculates the g0 - Kerr coupling strength - from the 
+        LLE parameters and a (given) intended threshold power. This threshold
+        power is just to dimensionalise the system such that comb generation
+        only happens for large cavity photon numbers (1uW seems typical)
+
+        Parameters
+        ----------
+        pThresh : numeric, optional
+            The threshold power for comb generation in watts. The default is
+            1e-3 (1mW).
+
+        Returns
+        -------
+        Updated QuantumFlux object with g0.
+
+        """
+        hbar = 6.62607015e-34 # reduced planks constant
+        g0_chembo = self.LLE_Soln.dw0**2*(hbar*self.LLE_Soln.w0)/(16*pThresh)
+        self.g0 = -g0_chembo # Difference in definition of g0 for Chembo/Li
         
     def reduce_LLESoln(self):
         """
@@ -96,10 +119,10 @@ class QuantumFlux:
         self.makeCouplingMatrix() # Make the matrix, M
         self.makeCorrelationMatrix() # Make the correlation matrix, V
         self.makeLogarithmicNegativityMatrix() # Make entanglement matrix, E
-        fig = plt.figure()
-        ax1 = fig.add_subplot(111)
-        plot = ax1.imshow(self.E,origin='lower')
-        fig.colorbar(plot, ax=ax1)
+        ######################################################################
+        # Delete me, just for checking stuff
+        self.checkDiagonals()
+        ######################################################################
         
     def makeBetas(self):
         """
@@ -111,8 +134,8 @@ class QuantumFlux:
         Updated QuantumFlux object, with Beta parameter calculated..
 
         """
-        deltaVec = self.LLE_Soln.ell2*self.LLE_Soln.beta + self.LLE_Soln.alpha
-        self.Beta = -1.0j*deltaVec + self.LLE_Soln.dw0
+        deltaVec = self.LLE_Soln.ell2*self.LLE_Soln.beta/2 - self.LLE_Soln.alpha
+        self.Beta = (-1.0j*deltaVec + 1)*self.LLE_Soln.dw0/2
         
     def makeDiffMatrix(self):
         """
@@ -132,7 +155,8 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.D = np.eye(self.N) * np.sqrt(2*self.LLE_Soln.dw0) # Noise matrix
+        self.D = np.eye(self.N) * self.LLE_Soln.dw0/2 # Noise matrix
+        self.D *= self.LLE_Soln.dw0/2 # Not sure why this is here...
         
     def makeCouplingMatrix(self):
         """
@@ -146,7 +170,7 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.alpha = self.LLE_Soln.psi_f
+        self.alpha = (self.LLE_Soln.psi_f)*(self.LLE_Soln.dw0/(2*self.g0))**0.5
         N = len(self.alpha)
         # This next removes the extra strength of the pump mode
         A = np.zeros((N,N))
@@ -166,14 +190,16 @@ class QuantumFlux:
                 sum2 = 0
                 
                 for c in range(N):
-                    try:
-                        sum1 += self.alpha[c]*self.alpha[I+J-c]
-                    except IndexError:
-                        _ = True
-                    try:
-                        sum2 += self.alpha[c]*self.alpha[c+I-J]
-                    except IndexError:
-                        _ = True
+                    if I+J-c>=0:
+                        try:
+                            sum1 += self.alpha[c]*self.alpha[I+J-c]
+                        except IndexError:
+                            _ = True
+                    if c+I-J>=0:
+                        try:
+                            sum2 += self.alpha[c]*self.alpha[c+I-J]
+                        except IndexError:
+                            _ = True
                 A[I][J] += self.g0*(np.imag(sum1) - 2*np.imag(sum2))
                 B[I][J] -= self.g0*(np.real(sum1) - 2*np.real(sum2))
                 C[I][J] -= self.g0*(np.real(sum1) + 2*np.real(sum2))
@@ -188,6 +214,8 @@ class QuantumFlux:
                   +np.kron(B,np.array([[0,1],[0,0]]))
                   +np.kron(C,np.array([[0,0],[1,0]]))
                   +np.kron(D,np.array([[0,0],[0,1]])))
+        
+        self.M *= self.LLE_Soln.dw0/2 # Swap from chembo's tau to t
         # Save this object after a long calculation to avoid needless 
         # repetition
         self.save_self()
@@ -229,6 +257,8 @@ class QuantumFlux:
 
         """
         self.E = np.zeros((self.N_lle*2+1,self.N_lle*2+1),dtype=float)
+        detV = np.linalg.det(self.V)
+        
         for i in range(self.N_lle*2+1):
             for j in range(self.N_lle*2+1):
                 ## Check indexing for the A, B, C submatrices etc!!
@@ -241,7 +271,8 @@ class QuantumFlux:
                 V1 = np.concatenate((A,C),axis=1)
                 V2 = np.concatenate((C_t,B),axis=1)
                 V = np.concatenate((V1,V2),axis=0)
-                eta = np.sqrt(theta - np.sqrt(theta**2 - 4*np.linalg.det(V)))
+                eta = np.sqrt(theta - np.sqrt(theta**2 - 
+                                              4*np.linalg.det(V)))
                 self.E[i][j] = np.max([0,-np.log(eta*2**0.5)])
                 if self.E[i][j]<=0:
                     self.E[i][j] = np.nan
@@ -254,7 +285,7 @@ class QuantumFlux:
 
         Parameters
         ----------
-        filename : TYPE, optional
+        filename : str, optional
             Filename for save. The default is None, which saves the file to
             the output directory and input filename specified when the object
             was initialised.
@@ -269,8 +300,78 @@ class QuantumFlux:
         with open(filename, 'wb') as output:  # Overwrites any existing file.
             pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
             
+    def checkDiagonals(self):
+        """
+        This just plots what would be expected for the A_, B_, C_ and D_ 
+        matrices based off a single pumped field to check for differences 
+        between the calculated versions
+
+        Returns
+        -------
+        None.
+
+        """
+        N = len(self.alpha)
+        alpha_0 = x.alpha[int(N/2)]
+        
+        A = np.zeros((N,N))
+        B = np.zeros((N,N))
+        C = np.zeros((N,N))
+        D = np.zeros((N,N))
+        
+        for i in range(N):
+            A[i][i] += np.real(self.Beta[i])-2*self.g0*np.imag(alpha_0*alpha_0)
+            A[i][N-1-i] += self.g0*np.imag(alpha_0*alpha_0)
+            
+            B[i][i] += -np.imag(self.Beta[i])+2*self.g0*np.real(alpha_0*alpha_0)
+            B[i][N-1-i] += -self.g0*np.real(alpha_0*alpha_0)
+            
+            C[i][i] += np.imag(self.Beta[i])-2*self.g0*np.real(alpha_0*alpha_0)
+            C[i][N-1-i] += -self.g0*np.real(alpha_0*alpha_0)
+            
+            D[i][i] += np.real(self.Beta[i])-2*self.g0*np.imag(alpha_0*alpha_0)
+            D[i][N-1-i] += -self.g0*np.imag(alpha_0*alpha_0)
+            
+        letts = [A,B,C,D]
+        letts_ = [self.A_, self.B_, self.C_, self.D_]
+        
+        fig = plt.figure()
+        for INDEX, let in enumerate(letts):
+            let_ = letts_[INDEX]
+            axlet = fig.add_subplot(4,3,1+INDEX*3)
+            axlet_ = fig.add_subplot(4,3,2+INDEX*3)
+            axDiff = fig.add_subplot(4,3,3+INDEX*3)
+            pltlet = axlet.imshow(let)
+            pltlet_ = axlet_.imshow(let_)
+            pltDiff = axDiff.imshow(let-let_)
+            fig.colorbar(pltDiff, ax=axDiff)
+            
+        fig2 = plt.figure()
+        ax2 = fig2.add_subplot(111)
+        E = ax2.imshow(self.E,origin='lower')
+        fig2.colorbar(E,ax=ax2)
+        
+# def analyzeObject(filename = 'single_mode.pkl'):
+#     with open('data/quantum flux/'+filename,'rb') as input_:
+#         x = pickle.load(input_)
+        
+    
+#     i = 1
+#     j = 101
+    
+#     A = x.V[2*i:2*i+2,2*i:2*i+2]
+#     B = x.V[2*j:2*j+2,2*j:2*j+2]
+#     C = x.V[2*i:2*i+2,2*j:2*j+2]
+#     C_t = x.V[2*j:2*j+2,2*i:2*i+2]
+    
+#     for zz in [A,B,C]:
+#         print(zz,  np.linalg.det(zz))
+#     theta = np.linalg.det(A) + np.linalg.det(B) - 2*np.linalg.det(C)
+#     print(theta)
+    
 if __name__ == '__main__':
-    filename = 'SingleSoliton_256.pkl'
-    # x = QuantumFlux(input_filename = filename)
+    filename = 'single_soliton_efficient.pkl'
+    plt.close('all')
     x = QuantumFlux(input_filename=filename)
     x.calculateParams()
+    # analyzeObject()

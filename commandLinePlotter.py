@@ -38,6 +38,7 @@ if __name__ == '__main__':
     ax1.set_xlabel('Longitudinal position along resonator')
     ylim = 1.1*max([max(abs(x.psi)**2) for x in X])
     ax1.set_ylim([0, ylim])
+    ax1.text(1.5,0.75*ylim,'Detuning: {:.2f}'.format(X[0].alpha))
     ax2.set_xlabel('Mode Number')
     ax1.set_ylabel('Intracavity\nintensity')
     axPhase.set_ylabel('Relative\nphase')
@@ -50,5 +51,4 @@ if __name__ == '__main__':
                   ell = x.ell,
                   psi = x.psi,
                   psi_f = x.psi_f)
-        fig.savefig('figs/LLE/'+FNAMES[i].replace('pkl','png'))
     plt.show()

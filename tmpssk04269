@@ -59,7 +59,7 @@ if __name__ == '__main__':
     for i, x in enumerate(X):
         plotGraph(axs=[ax1, axPhase, ax2],
                   theta = x.theta,
-                  Ell = x.ell,
+                  ell = x.ell,
                   psi = x.psi,
                   psi_f = x.psi_f)
     plt.show()

@@ -27,7 +27,7 @@ class LLE_Solver:
         Optical Frequency Combs below and above Threshold: Spontaneous
         Four-Wave-Mixing, Entanglement and Squeezed States of Light" found at
         https://arxiv.org/abs/1412.5700, which explains the normalisation 
-        parameters (Eq 13). 
+        parameters.
         
         Parameters
         ----------
@@ -275,11 +275,10 @@ class LLE_Solver:
             modePlot.append(ell)
             modePlot.append(ell)
             psiPlot.append(-200)
-            psiPlot.append(np.log(np.abs(self.psi_f[index])**2))
+            psiPlot.append(np.log(np.abs(self.psi_f[index])**2)
             psiPlot.append(np.nan)
             
         ax_modes.plot(modePlot,psiPlot,'k')
-        ax_modes.set_ylim([-20,1])
         ax_modes.set_xlabel('Mode number')
         ax_modes.set_ylabel('Modal intensity, dB')
         
@@ -357,9 +356,11 @@ if __name__ == '__main__':
     import matplotlib as mpl
     mpl.rcParams['figure.dpi'] = 300
     
+    # N = 256
+    # ss = 14
     # x = LLE_Solver()
     # x.runSimulation(updateParams={'alpha':[-3,5]})
     # x.plot_self()
-    x = load_previous('data/lle/looking for single mode/17223.pkl')
+    x = load_previous('data/lle/multiple_modes.pkl')
     x.updateParameter(tau=0)
     x.runSimulation(addRand=False)

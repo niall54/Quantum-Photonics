@@ -1,4 +1,5 @@
 import pickle
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import solve_lyapunov
@@ -58,7 +59,7 @@ class QuantumFlux:
         # Set directory to save object info to
         self.output_dir = output_dir
         
-    def get_g0(self,pThresh=1e-3):
+    def get_g0(self,pThresh=1e-9):
         """
         This routine calculates the g0 - Kerr coupling strength - from the 
         LLE parameters and a (given) intended threshold power. This threshold
@@ -77,8 +78,12 @@ class QuantumFlux:
 
         """
         hbar = 6.62607015e-34 # reduced planks constant
-        g0_chembo = self.LLE_Soln.dw0**2*(hbar*self.LLE_Soln.w0)/(16*pThresh)
+        g0_chembo = self.LLE_Soln.dw0**2*(hbar*self.LLE_Soln.w0)/(4*pThresh)
         self.g0 = -g0_chembo # Difference in definition of g0 for Chembo/Li
+        
+        print('Using a comb threshold power of {:.2e}W'.format(pThresh))
+        print('This corresponds to a g0 of: {:.2e}Hz'.format(self.g0))
+        print('Is this hertz though...?')
         
     def reduce_LLESoln(self):
         """
@@ -132,8 +137,8 @@ class QuantumFlux:
         Updated QuantumFlux object, with Beta parameter calculated..
 
         """
-        deltaVec = self.LLE_Soln.ell2*self.LLE_Soln.beta/2 - self.LLE_Soln.alpha
-        self.Beta = (-1.0j*deltaVec + 1)*self.LLE_Soln.dw0/2
+        deltaVec = self.LLE_Soln.alpha - self.LLE_Soln.ell2*self.LLE_Soln.beta/2
+        self.Beta = (-1.0j*deltaVec - 1)*self.LLE_Soln.dw0/2
         
     def makeDiffMatrix(self):
         """
@@ -154,7 +159,6 @@ class QuantumFlux:
 
         """
         self.D = np.eye(self.N) * self.LLE_Soln.dw0/2 # Noise matrix
-        self.D *= self.LLE_Soln.dw0/2 # Not sure why this is here...
         
     def makeCouplingMatrix(self):
         """
@@ -168,6 +172,7 @@ class QuantumFlux:
         **********************************************************************
 
         """
+        print('*'*70)
         self.alpha = (self.LLE_Soln.psi_f)*(self.LLE_Soln.dw0/(2*self.g0))**0.5
         N = len(self.alpha)
         # This next removes the extra strength of the pump mode
@@ -176,7 +181,7 @@ class QuantumFlux:
         C = np.zeros((N,N))
         D = np.zeros((N,N))
         for I in range(N):
-            print('\rRunning simulation: {:.2f}%'.format(100*I/N),
+            print('\rCalculating coupling matrix, M: {:.2f}%'.format(100*I/N),
                   end="")
             for J in range(N):
                 if I == J:
@@ -236,6 +241,8 @@ class QuantumFlux:
         **********************************************************************
 
         """
+        print('\n'+'*'*70)
+        print('Calculating Correlation Matrix')
         self.V = solve_lyapunov(self.M, -self.D)
         self.save_self()
         
@@ -254,27 +261,33 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.E = np.zeros((self.N_lle*2+1,self.N_lle*2+1),dtype=float)
-        detV = np.linalg.det(self.V)
-        
-        for i in range(self.N_lle*2+1):
-            for j in range(self.N_lle*2+1):
-                ## Check indexing for the A, B, C submatrices etc!!
-                A = self.V[2*i:2*i+2,2*i:2*i+2]
-                B = self.V[2*j:2*j+2,2*j:2*j+2]
-                C = self.V[2*i:2*i+2,2*j:2*j+2]
-                C_t = self.V[2*j:2*j+2,2*i:2*i+2] # should be transpose of C!
-                theta = (np.linalg.det(A) + np.linalg.det(B) 
-                         - 2*np.linalg.det(C))
-                V1 = np.concatenate((A,C),axis=1)
-                V2 = np.concatenate((C_t,B),axis=1)
-                V = np.concatenate((V1,V2),axis=0)
-                eta = np.sqrt(theta - np.sqrt(theta**2 - 
-                                              4*np.linalg.det(V)))
-                self.E[i][j] = np.max([0,-np.log(eta*2**0.5)])
-                if self.E[i][j]<=0:
-                    self.E[i][j] = np.nan
-        self.save_self()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            print('*'*70)
+            self.E = np.zeros((self.N_lle*2+1,self.N_lle*2+1),dtype=float)
+            detV = np.linalg.det(self.V)
+            
+            for i in range(self.N_lle*2+1):
+                print('\rCalculating entanglement matrix, M: {:.2f}%'.format(
+                    100*i/(self.N_lle*2+1)),end="")
+                for j in range(self.N_lle*2+1):
+                    ## Check indexing for the A, B, C submatrices etc!!
+                    A = self.V[2*i:2*i+2,2*i:2*i+2]
+                    B = self.V[2*j:2*j+2,2*j:2*j+2]
+                    C = self.V[2*i:2*i+2,2*j:2*j+2]
+                    C_t = self.V[2*j:2*j+2,2*i:2*i+2] # should be transpose of
+                                                      # C!
+                    theta = (np.linalg.det(A) + np.linalg.det(B) 
+                             - 2*np.linalg.det(C))
+                    V1 = np.concatenate((A,C),axis=1)
+                    V2 = np.concatenate((C_t,B),axis=1)
+                    V = np.concatenate((V1,V2),axis=0)
+                    eta = np.sqrt(theta - np.sqrt(theta**2 - 
+                                                  4*np.linalg.det(V)))
+                    self.E[i][j] = np.max([0,-np.log(eta*2**0.5)])
+                    if self.E[i][j]<=0:
+                        self.E[i][j] = np.nan
+            self.save_self()
         
     def save_self(self, filename=None):
         """
@@ -318,15 +331,17 @@ class QuantumFlux:
 
         """
         if axs is None:
-            fig = plt.figure()
+            fig = plt.figure(dpi=300)
             fig.subplots_adjust(hspace=0.4)
-            gs = fig.add_gridspec(2,2)
+            gs = fig.add_gridspec(2,3)
             ax1 = fig.add_subplot(gs[0,0])
             ax2 = fig.add_subplot(gs[1,0])
-            ax3 = fig.add_subplot(gs[:,1])
+            ax3 = fig.add_subplot(gs[:,1:])
             axs = [ax1, ax2, ax3]
         self.LLE_Soln.plot_self(axs=axs[0:2]) # Plot LLE solution results
         
+        # Plot the entanglement matrix, in the right "direction" and with the
+        # indices matching the modal numbers
         E = ax3.imshow(self.E, origin='lower',
                        extent=self.N_lle*np.array([-1,1,-1,1]))
         cb = fig.colorbar(E,ax=ax3)
@@ -335,7 +350,7 @@ class QuantumFlux:
         
         
 if __name__ == '__main__':
-    filename = 'single_soliton_efficient.pkl'
+    filename = 'multiple_modes.pkl'
     plt.close('all')
     x = QuantumFlux(input_filename=filename)
     x.calculateParams()

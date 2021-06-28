@@ -138,7 +138,7 @@ class LLE_Solver:
                       addRand = True,
                       updateParams = None,
                       saveData = True,
-                      saveRate = 100):
+                      saveRate = 1000):
         """
         This method runs a simulation using the current object properties. A
         sweep - e.g. of the input frequency to simulate a frequency sweep 
@@ -279,7 +279,7 @@ class LLE_Solver:
             psiPlot.append(np.nan)
             
         ax_modes.plot(modePlot,psiPlot,'k')
-        ax_modes.set_ylim([-20,1])
+        ax_modes.set_ylim([-20,5])
         ax_modes.set_xlabel('Mode number')
         ax_modes.set_ylabel('Modal intensity, dB')
         
@@ -356,10 +356,7 @@ def load_previous(filename):
 if __name__ == '__main__':
     import matplotlib as mpl
     mpl.rcParams['figure.dpi'] = 300
-    
-    # x = LLE_Solver()
-    # x.runSimulation(updateParams={'alpha':[-3,5]})
-    # x.plot_self()
-    x = load_previous('data/lle/looking for single mode/17223.pkl')
-    x.updateParameter(tau=0)
-    x.runSimulation(addRand=False)
+    for Pin in [0.1, 0.5, 0.75, 1.0, 1.5, 2.0]:
+        x = LLE_Solver(Pin=Pin)
+        x.runSimulation(updateParams={'alpha':[-5,5]})
+        x.plot_self()

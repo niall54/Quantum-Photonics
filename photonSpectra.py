@@ -148,9 +148,6 @@ class MyDisplayWidget(QWidget):
         
         self.Label.setText(str1+str2)
         
-    
-        
-        
 class QuantumComb:
     def __init__(self,
                  noModes = 100,
@@ -190,8 +187,6 @@ class QuantumComb:
         None.
 
         """
-        
-        
         self.noModes = noModes # Maximum modal number to simulate
         self.Ls = np.linspace(-self.noModes,self.noModes,
                               2*self.noModes+1) # Mode numbers
@@ -201,7 +196,7 @@ class QuantumComb:
         self.power = power # Coupled power g0|A0|^2, linewidths
         self.Q = Q # Q-factor
         
-        self.omegas = np.linspace(-20,20,1000)
+        self.omegas = np.linspace(-200,200,10000)
         self.calculateSpectra()
         
     def calculateSpectra(self):
@@ -210,18 +205,31 @@ class QuantumComb:
         the parameters. See section IV of the paper.
         """
         self.spectra = []
+        self.correlations = []
         self.spectraMax = []
         self.singlePeaked = []
         self.Ns = []
         for l in self.Ls:
             # Eq 63
-            etaL = self.sigma - 0.5*self.eta2*l**2 + 2*self.power            
+            etaL = self.sigma - 0.5*self.eta2*l**2 + 2*self.power   
+            # Eq 52
+            # Correlation Parameters
+            RL = etaL*1.0j - 1 # Eq 52
+            SL = 1.0j*self.power # Eq 53
+            # Eq 65
+            DL = 1 - self.power**2 +etaL**2 - self.omegas**2 - 2*self.omegas*1.0j
+            
+            C = (-self.rho*2*SL/(np.abs(DL)**2))*(np.conj(DL)+2*RL-
+                                                  2*self.omegas*1.0j) # Eq 84
+            
+            # 
             # Eq 62
             spectrum = 4*self.rho*self.power**2 /(
                 (1 - self.power**2 + etaL**2 - self.omegas**2)**2 +
                 4*self.omegas**2)
             
             self.spectra.append(spectrum)
+            self.correlations.append(C)
             
             # Check whether spectra are single peaked
             if etaL**2<1+self.power:# Eq 66, normalised by kappa
@@ -289,6 +297,48 @@ class QuantumComb:
         ax.set_title('Spectrum for Mode Number {}'.format(mode))
         
         return self.Ns[modeIdx[0][0]]
+    
+    def plotCorrelations(self, 
+                         mode = 1,
+                         ax = None,
+                         removeLines = True,
+                         x_axis = 'omega'):
+        if ax == None:
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+        elif removeLines: 
+            ax.lines = []
+        
+        modeIdx = np.where(self.Ls == mode)
+        C =self.correlations[modeIdx[0][0]]
+        if x_axis == 'omega':
+            ax.plot(self.omegas, np.abs(C),'k', label='Abs')
+            ax.plot(self.omegas, np.real(C),'r--',label='Real')
+            ax.plot(self.omegas, np.imag(C),'b--',label='Imaginary')
+            ax.set_xlabel('\omega')
+            ax.set_ylabel('Correlation')
+            ax.legend()
+            ax.set_xlim([-50,50])
+        elif x_axis == 't':
+            middleIndex = int(len(C)/2)
+            C = np.fft.ifft(C[middleIndex:]+C[0:middleIndex])
+            middleIndex = int(len(C)/2)
+            C = np.append(C[middleIndex:],C[0:middleIndex])
+            t = np.arange(0,len(C))
+            t-=int(len(C)/2)
+            
+            ax.plot(t,np.abs(C),'k', label='Abs',alpha=0.5)
+            ax.plot(t,np.real(C),'r',label='Real',alpha=0.5)
+            ax.plot(t,np.imag(C),'b',label='Imaginary',alpha=0.5)
+            ax.set_xlabel('t')
+            ax.set_ylabel('Correlation')
+            ax.set_xlim([-40,40])
+        
+        maxSig = max([max(np.abs(C)),max(np.real(C)),max(np.imag(C))])
+        minSig = min([min(np.abs(C)),min(np.real(C)),min(np.imag(C))])
+        dSig = maxSig - minSig
+        ax.set_ylim([minSig-0.1*dSig,maxSig+0.1*dSig])
+        ax.relim()
         
     def update(self,newdata):
         for key,value in newdata.items():
@@ -351,6 +401,8 @@ class Gui(QtWidgets.QMainWindow):
         self.setWindowTitle('Quantum Comb Spectra')
         self.setFixedHeight(1500)
         self.setFixedWidth(3000)
+        self.x_axis = 'omega'
+        self.mode=0
         
         self.QuantumComb = QuantumComb()
         self.Resonator = Resonator()
@@ -360,24 +412,39 @@ class Gui(QtWidgets.QMainWindow):
         
         self.envelopeWidget = MplCanvas()        
         self.spectrumWidget = MplCanvas()
+        self.correlationWidget = MplCanvas()
         
         self.makeEnvelope()
         self.makeSpectrum()
+        self.makeCorrelation()
         self.makeOptions()
+        
+        self.swapAxes = QtWidgets.QPushButton('Change x-axis')
+        self.swapAxes.pressed.connect(self.swapAxesFn)
+        
+        self.vbox = QtWidgets.QVBoxLayout()
+        self.vbox.addWidget(self.spectrumWidget)
+        self.vbox.addWidget(self.correlationWidget)
+        self.vbox.addWidget(self.swapAxes)
         
         self.hbox = QtWidgets.QHBoxLayout()
         self.hbox.addWidget(self.envelopeWidget)
-        self.hbox.addWidget(self.spectrumWidget)
+        self.hbox.addItem(self.vbox)
         self.hbox.addWidget(self.optionsWidget)
         
         self.centralWidget = QWidget()
         self.centralWidget.setLayout(self.hbox)
         self.setCentralWidget(self.centralWidget)
         
+    def swapAxesFn(self):
+        swapper = {'omega':'t','t':'omega'}
+        self.x_axis = swapper[self.x_axis]
+        self.updateSpectrum()
+        
     def makeEnvelope(self):
         self.QuantumComb.plotModalEnvelope(ax = self.envelopeWidget.axes)
         self.envelopeWidget.mpl_connect('button_press_event', 
-                                        self.updateSpectrum)
+                                        self.updateSpectrumMode)
         self.envelopeWidget.draw()
         self.show()
         
@@ -387,6 +454,15 @@ class Gui(QtWidgets.QMainWindow):
                                                   mode = mode)
         self.nOut = nOut
         self.spectrumWidget.draw()
+        
+        self.show()
+        
+    def makeCorrelation(self,
+                     mode = 1):
+        self.QuantumComb.plotCorrelations(ax =self.correlationWidget.axes,
+                                          mode = mode,
+                                          x_axis=self.x_axis)
+        self.correlationWidget.draw()
         
         self.show()
         
@@ -426,9 +502,13 @@ class Gui(QtWidgets.QMainWindow):
         
         self.optionsWidget.setLayout(layout)
         
-    def updateSpectrum(self,event):
-        mode = np.round(event.xdata)
-        self.makeSpectrum(mode=int(mode))
+    def updateSpectrumMode(self,event):
+        self.mode = np.round(event.xdata)
+        self.updateSpectrum()
+        
+    def updateSpectrum(self):
+        self.makeSpectrum(mode=int(self.mode))
+        self.makeCorrelation(mode=int(self.mode))
         self.myDisplay.updateDisplay(self.nIn, self.nOut)
         
     def updateOptionValue(self, option = None, value = None):
@@ -439,6 +519,7 @@ class Gui(QtWidgets.QMainWindow):
         self.myDisplay.updateDisplay(self.nIn, self.nOut)
         self.makeEnvelope()
         self.makeSpectrum(1)
+        self.makeCorrelation(1)
         self.show()
         
 def main():  

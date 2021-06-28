@@ -266,7 +266,7 @@ class QuantumFlux:
             print('*'*70)
             self.E = np.zeros((self.N_lle*2+1,self.N_lle*2+1),dtype=float)
             detV = np.linalg.det(self.V)
-            
+            self.V = self.V
             for i in range(self.N_lle*2+1):
                 print('\rCalculating entanglement matrix, M: {:.2f}%'.format(
                     100*i/(self.N_lle*2+1)),end="")
@@ -280,11 +280,12 @@ class QuantumFlux:
                     theta = (np.linalg.det(A) + np.linalg.det(B) 
                              - 2*np.linalg.det(C))
                     V1 = np.concatenate((A,C),axis=1)
-                    V2 = np.concatenate((C_t,B),axis=1)
+                    V2 = np.concatenate((np.transpose(C),B),axis=1)
                     V = np.concatenate((V1,V2),axis=0)
                     eta = np.sqrt(theta - np.sqrt(theta**2 - 
                                                   4*np.linalg.det(V)))
-                    self.E[i][j] = np.max([0,-np.log(eta*2**0.5)])
+                    self.E[i][j] = np.max([0,-np.log(eta*(2**0.5))])
+                    self.E[i][j] = eta
                     if self.E[i][j]<=0:
                         self.E[i][j] = np.nan
             self.save_self()
@@ -347,10 +348,15 @@ class QuantumFlux:
         cb = fig.colorbar(E,ax=ax3)
         ax3.set_title('Entanglement Matrix, $E$')
         
+        fig2 = plt.figure()
+        axV = fig2.add_subplot(111)
+        V = axV.imshow(self.V,origin='lower',
+                   extent=self.N_lle*np.array([-1,1,-1,1]))
+        cb = fig.colorbar(V,ax=axV)
         
         
 if __name__ == '__main__':
-    filename = 'multiple_modes.pkl'
+    filename = 'single_soliton_efficient.pkl'
     plt.close('all')
     x = QuantumFlux(input_filename=filename)
     x.calculateParams()

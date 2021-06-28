@@ -78,12 +78,12 @@ class QuantumFlux:
 
         """
         hbar = 6.62607015e-34 # reduced planks constant
-        g0_chembo = self.LLE_Soln.dw0**2*(hbar*self.LLE_Soln.w0)/(4*pThresh)
+        g0_chembo = self.LLE_Soln.dw0**2*(hbar*self.LLE_Soln.w0)/(pThresh)
         self.g0 = -g0_chembo # Difference in definition of g0 for Chembo/Li
         
         print('Using a comb threshold power of {:.2e}W'.format(pThresh))
-        print('This corresponds to a g0 of: {:.2e}Hz'.format(self.g0))
-        print('Is this hertz though...?')
+        print('This corresponds to a g0 of: {:.2e}Rad/s'.format(self.g0))
+        
         
     def reduce_LLESoln(self):
         """
@@ -137,8 +137,8 @@ class QuantumFlux:
         Updated QuantumFlux object, with Beta parameter calculated..
 
         """
-        deltaVec = self.LLE_Soln.alpha - self.LLE_Soln.ell2*self.LLE_Soln.beta/2
-        self.Beta = (-1.0j*deltaVec - 1)*self.LLE_Soln.dw0/2
+        deltaVec = self.LLE_Soln.alpha + self.LLE_Soln.ell2*self.LLE_Soln.beta/2
+        self.Beta = -1.0j*deltaVec - self.LLE_Soln.dw0/2
         
     def makeDiffMatrix(self):
         """
@@ -158,7 +158,7 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.D = np.eye(self.N) * self.LLE_Soln.dw0/2 # Noise matrix
+        self.D = np.eye(self.N) * np.sqrt(self.LLE_Soln.dw0) # Noise matrix
         
     def makeCouplingMatrix(self):
         """

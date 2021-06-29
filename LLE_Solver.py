@@ -42,7 +42,7 @@ class LLE_Solver:
             critical coupling). The default is 1.85e8.
         N : int, optional
             Number of simulated modes, must be a power of 2. The default is 
-            1024.
+            256.
         htau : numeric, optional
             Dimensionless simulation time-step, as a proportion of the cavity
             lifetime. The default is 0.0002.
@@ -357,6 +357,6 @@ if __name__ == '__main__':
     import matplotlib as mpl
     mpl.rcParams['figure.dpi'] = 300
     for Pin in [0.1, 0.5, 0.75, 1.0, 1.5, 2.0]:
-        x = LLE_Solver(Pin=Pin)
-        x.runSimulation(updateParams={'alpha':[-5,5]})
+        x = LLE_Solver(Pin=Pin,N=4)
+        x.runSimulation(updateParams={'alpha':[-5,5]},tauMax=50)
         x.plot_self()

@@ -59,7 +59,7 @@ class QuantumFlux:
         # Set directory to save object info to
         self.output_dir = output_dir
         
-    def get_g0(self,pThresh=1e-3):
+    def get_g0(self,pThresh=1e-9):
         """
         This routine calculates the g0 - Kerr coupling strength - from the 
         LLE parameters and a (given) intended threshold power. This threshold
@@ -83,6 +83,7 @@ class QuantumFlux:
         
         print('Using a comb threshold power of {:.2e}W'.format(pThresh))
         print('This corresponds to a g0 of: {:.2e}Rad/s'.format(self.g0))
+        
         
     def reduce_LLESoln(self):
         """
@@ -158,7 +159,7 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.D = np.eye(self.N) * 2/self.LLE_Soln.dw0 # Noise matrix
+        self.D = np.eye(self.N) * np.sqrt(2/self.LLE_Soln.dw0) # Noise matrix
         
     def makeCouplingMatrix(self):
         """

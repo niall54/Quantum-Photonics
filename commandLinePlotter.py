@@ -34,14 +34,14 @@ if __name__ == '__main__':
         
     print(fname)
     if multiple:
-        prefix1, prefix2, number = fname.split('_')
+        prefix1, prefix2 = fname.split('_')
         prefix = prefix1 + '_' + prefix2
         print(prefix)
-        FNAMES = [file for file in os.listdir("data/LLE") if file.startswith(prefix)]
+        FNAMES = [file for file in os.listdir("data/LLE/"+prefix+'/') if file.endswith('.pkl')]
         print(FNAMES)
     else:       
         FNAMES = [fname]
-    X = [load_previous('data/LLE/'+fname) for fname in FNAMES]
+    X = [load_previous('data/LLE/'+prefix+'/'+fname) for fname in FNAMES]
     fig = plt.figure()
     ax1 = fig.add_subplot(311)
     axPhase = fig.add_subplot(312)
@@ -56,10 +56,17 @@ if __name__ == '__main__':
     axPhase.set_ylim([-np.pi, np.pi])
     ax2.set_ylabel('Power\nspectrum')
     ax2.set_ylim([-25, 1])
+    
+    fig2 = plt.figure()
+    axSweep = fig2.add_subplot(111)
     for i, x in enumerate(X):
         plotGraph(axs=[ax1, axPhase, ax2],
                   theta = x.theta,
                   Ell = x.ell,
                   psi = x.psi,
                   psi_f = x.psi_f)
+        psi_tot = 0
+        for psi in x.psi:
+            psi_tot += np.abs(psi)**2
+        axSweep.plot(x.alpha,psi_tot,'k.')
     plt.show()

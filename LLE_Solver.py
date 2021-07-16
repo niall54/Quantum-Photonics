@@ -138,7 +138,7 @@ class LLE_Solver:
                       addRand = True,
                       updateParams = None,
                       saveData = True,
-                      saveRate = 1000):
+                      saveRate = 100):
         """
         This method runs a simulation using the current object properties. A
         sweep - e.g. of the input frequency to simulate a frequency sweep 
@@ -356,7 +356,27 @@ def load_previous(filename):
 if __name__ == '__main__':
     import matplotlib as mpl
     mpl.rcParams['figure.dpi'] = 300
-    for Pin in [0.1, 0.5, 0.75, 1.0, 1.5, 2.0]:
-        x = LLE_Solver(Pin=Pin,N=4)
-        x.runSimulation(updateParams={'alpha':[-5,5]},tauMax=50)
-        x.plot_self()
+    # Now lets try the solver where none of the parameters change, but we see 
+    # how an initial square pulse changes over time (and try to make a 
+    # soliton)!
+    ##########################################################################
+    # Initial cavity field
+    psi0 = np.zeros((256),dtype=complex) # make zeros (NB fields are complex!)
+    psi0[100:150] += 1+0j # make square pulse
+    fig1 = plt.figure()
+    fig1.canvas.set_window_title('Initial cavity field')
+    ax1 = fig1.add_subplot(111)
+    ax1.plot(np.abs(psi0)**2)
+    ##########################################################################
+    # Make LLE Solver with psi0 as the initial cavity field, and given values
+    # of Pin and alpha (NB - I've just changed these until I get it to evolve
+    # into a soliton! This will be your job to do now with higher
+    # efficiencies)
+    Pin = 2.0 # input power
+    alpha = 2.0 # input detuning
+    x = LLE_Solver(Pin=Pin, alpha=alpha, psi0=psi0)
+    ##########################################################################
+    # Run simulation
+    x.runSimulation(tauMax=500)
+    x.plot_self()
+    # Cool - looking at the output we have a 4 soliton state

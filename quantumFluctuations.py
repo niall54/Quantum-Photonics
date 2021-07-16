@@ -1,3 +1,4 @@
+import os
 import pickle
 import warnings
 import numpy as np
@@ -58,6 +59,18 @@ class QuantumFlux:
         # Chembo and Quantum Correlation papers
         # Set directory to save object info to
         self.output_dir = output_dir
+        self.make_outputDir()
+        
+    def make_outputDir(self):
+        outputDir_addon = self.input_filename.split('/')[:-1]
+        output_dir_act = self.output_dir
+        for addon in outputDir_addon:
+            output_dir_act += addon + '/'
+        if os.path.isdir(output_dir_act):
+            print('Output directory already exists')
+        else:
+            os.mkdir(output_dir_act)
+            print('Making directory: {}'.format(output_dir_act))
         
     def get_g0(self,pThresh=1e-6):
         """
@@ -102,7 +115,7 @@ class QuantumFlux:
             
         self.LLE_Soln.N -= 1
         
-    def calculateParams(self):
+    def calculateParams(self, plot_results=True):
         """
         This method runs through the solver in accordence with "Multi-color
         continuous-variable quantum entanglement in dissipative Kerr solitons",
@@ -123,7 +136,8 @@ class QuantumFlux:
         self.makeCouplingMatrix2() # Make the matrix, M
         self.makeCorrelationMatrix() # Make the correlation matrix, V
         self.makeLogarithmicNegativityMatrix() # Make entanglement matrix, E
-        self.plotResults()
+        if plot_results:
+            self.plotResults()
         
     def dummy(self):
         """
@@ -133,18 +147,61 @@ class QuantumFlux:
         self.N = 4*self.N_lle + 2 # Number of quadratures to be calculated
         # NB) self.N = 4*self.N_lle because there are two lots of each mode 
         # (one above, one below the pump), each with two quadratures
+        argMAX = np.argmax(self.LLE_Soln.psi_f)
+        for index, a in enumerate(self.LLE_Soln.psi_f):
+            if index != argMAX:
+                self.LLE_Soln.psi_f[index] *= 0
+                
         
         self.makeBetas() # Make the effective detuning vector, Beta
         self.makeDiffMatrix() # Make the diffusion matrix, D
-        self.makeCouplingMatrix() # Make the matrix, M
         self.makeCouplingMatrix2() # Make the matrix, M
         
+        
+        N = len(self.alpha)
+        A, B, C, D = (np.zeros((N,N)), np.zeros((N,N)),
+                      np.zeros((N,N)), np.zeros((N,N)))
+        
+        A0 = self.LLE_Soln.psi_f[argMAX]*(self.LLE_Soln.dw0/(2*self.g0))**0.5
+        self.sigma = -self.LLE_Soln.alpha*self.kappa
+        
+        lMax = int(max(self.LLE_Soln.ell))
+        print(A0)
+        
+        for i in range(N):
+            l = i - lMax
+            p1 = l
+            j1 = p1 + lMax
+            p2 = -l
+            j2 = p2+lMax
+            
+            if j1 in range(N):
+                A[i,j1] += - self.kappa/np.sqrt(2)
+                B[i,j1] += -(2*self.g0*abs(A0)**2 + self.sigma -
+                             self.LLE_Soln.beta*l**2/2)/np.sqrt(2)
+                C[i,j1] += (2*self.g0*abs(A0)**2 + self.sigma -
+                             self.LLE_Soln.beta*l**2/2)/np.sqrt(2)
+                D[i,j1] += - self.kappa/np.sqrt(2)
+            
+            if j2 in range(N):
+                A[i,j2] += - 2*self.g0*np.real(A0)*np.imag(A0)/np.sqrt(2)
+                B[i,j2] += self.g0*(np.real(A0)**2-np.imag(A0)**2)/np.sqrt(2)
+                C[i,j2] += self.g0*(np.real(A0)**2-np.imag(A0)**2)/np.sqrt(2)
+                D[i,j2] += 2*self.g0*np.real(A0)*np.imag(A0)/np.sqrt(2)
+                
+        self.mats_1 = [A, B, C, D]
         fig = plt.figure()
         for i in range(4):
-            ax1 = fig.add_subplot(4,2,2*i+1)
-            ax2 = fig.add_subplot(4,2,2*i+2)
-            ax1.imshow(self.mats_1[i])
-            ax2.imshow(self.mats_2[i])
+            ax1 = fig.add_subplot(4,3,3*i+1)
+            ax2 = fig.add_subplot(4,3,3*i+2)
+            ax3 = fig.add_subplot(4,3,3*i+3)
+            max1 = abs(max(self.mats_1[i].max(),self.mats_1[i].min(),key=abs))
+            max2 = abs(max(self.mats_2[i].max(),self.mats_2[i].min(),key=abs))
+            # max2 = max(abs(self.mats_2[i]))
+            
+            ax1.imshow(self.mats_1[i],vmax=max1, vmin=-max1)
+            ax2.imshow(self.mats_2[i],vmax=max2, vmin=-max2)
+            ax3.imshow(self.mats_2[i]-self.mats_1[i])
             
     def makeBetas(self):
         """
@@ -156,9 +213,12 @@ class QuantumFlux:
         Updated QuantumFlux object, with Beta parameter calculated..
 
         """
-        deltaVec = (self.LLE_Soln.alpha - 
-                    self.LLE_Soln.ell2*self.LLE_Soln.beta/2)*(self.LLE_Soln.dw0/2)
-        self.Beta = -1.0j*deltaVec - self.LLE_Soln.dw0/2
+        # deltaVec = (self.LLE_Soln.alpha - 
+        #             self.LLE_Soln.ell2*self.LLE_Soln.beta/2)*(self.LLE_Soln.dw0/2)
+        # self.Beta = -1.0j*deltaVec - self.LLE_Soln.dw0/2
+        self.Beta = self.kappa*(1.0j*(self.LLE_Soln.ell2*self.LLE_Soln.beta/2
+                                      - self.LLE_Soln.alpha)
+                                - 1)
         
     def makeDiffMatrix(self):
         """
@@ -178,7 +238,7 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.D = np.eye(self.N) * self.LLE_Soln.dw0 # Noise matrix
+        self.D = np.eye(self.N) * self.kappa**2 /2**0.5 # Noise matrix
         
     def makeCouplingMatrix(self):
         """
@@ -246,9 +306,9 @@ class QuantumFlux:
         self.save_self()
     
     def makeCouplingMatrix2(self):
-        self.alpha = (self.LLE_Soln.psi_f[np.newaxis])*(self.LLE_Soln.dw0/(2*self.g0))**0.5
+        self.alpha = (self.LLE_Soln.psi_f)*(self.LLE_Soln.dw0/(2*self.g0))**0.5
         
-        N = len(self.alpha[0])
+        N = len(self.alpha)
         
         S_lp = np.zeros((N,N),dtype=complex)
         R_lp = np.zeros((N,N),dtype=complex)
@@ -268,23 +328,25 @@ class QuantumFlux:
                     n_0 = m+p-l
                     N_0 = n_0 + lMax
                     if N_0 in range(N):
-                        R_lp[i,j] += 2.0j* self.g0 * self.alpha[0,k] * np.conj(self.alpha[0,N_0])
+                        R_lp[i,j] += 2.0j* self.g0 * self.alpha[k] * np.conj(self.alpha[N_0])
                     n_1 = l+p-m
                     N_1 = n_1 + lMax
                         
                     if N_1 in range(N):
-                        S_lp[i,j] += 1.0j* self.g0 * self.alpha[0,k] * self.alpha[0,N_1]
-                            
-        A = np.sqrt(2)*np.real(np.conj(R_lp) + S_lp)
-        B = np.sqrt(2)*np.imag(np.conj(R_lp) + S_lp)
-        C = -np.sqrt(2)*np.imag(np.conj(R_lp) - S_lp)
-        D = np.sqrt(2)*np.real(np.conj(R_lp) - S_lp)
+                        S_lp[i,j] += 1.0j* self.g0 * self.alpha[k] * self.alpha[N_1]
+                        
+        A = np.sqrt(1/2)*np.real(np.conj(R_lp) + S_lp)
+        B = np.sqrt(1/2)*np.imag(np.conj(R_lp) + S_lp)
+        C = -np.sqrt(1/2)*np.imag(np.conj(R_lp) - S_lp)
+        D = np.sqrt(1/2)*np.real(np.conj(R_lp) - S_lp)
+        # A, B, C, D = np.real(R_lp)/2**0.5, np.imag(R_lp)/2**0.5, np.real(S_lp)/2**0.5, np.imag(S_lp)/2**0.5
         self.mats_2 = [A, B, C, D]
+        
         self.M = ( np.kron(A,np.array([[1,0],[0,0]]))
                   +np.kron(B,np.array([[0,1],[0,0]]))
                   +np.kron(C,np.array([[0,0],[1,0]]))
                   +np.kron(D,np.array([[0,0],[0,1]])))
-    
+        
         self.M *= self.LLE_Soln.dw0/2 # Swap from chembo's tau to t
         # Save this object after a long calculation to avoid needless 
         # repetition
@@ -350,7 +412,7 @@ class QuantumFlux:
                     eta = np.sqrt(theta - np.sqrt(theta**2 - 
                                                   4*np.linalg.det(V)))
                     self.E[i][j] = np.max([0,-np.log(eta*(2**0.5))])
-                    self.E[i][j] = eta
+                    
                     if self.E[i][j]<=0:
                         self.E[i][j] = np.nan
             self.save_self()
@@ -396,14 +458,18 @@ class QuantumFlux:
         None.
 
         """
-        if axs is None:
+        
+        if fig is None:
             fig = plt.figure(dpi=300)
             fig.subplots_adjust(hspace=0.4)
             gs = fig.add_gridspec(2,3)
+            
+        if axs is None:
             ax1 = fig.add_subplot(gs[0,0])
             ax2 = fig.add_subplot(gs[1,0])
             ax3 = fig.add_subplot(gs[:,1:])
             axs = [ax1, ax2, ax3]
+        ax1, ax2, ax3 = axs
         self.LLE_Soln.plot_self(axs=axs[0:2]) # Plot LLE solution results
         
         # Plot the entanglement matrix, in the right "direction" and with the
@@ -413,15 +479,17 @@ class QuantumFlux:
         cb = fig.colorbar(E,ax=ax3)
         ax3.set_title('Entanglement Matrix, $E$')
         
-        fig2 = plt.figure()
-        axV = fig2.add_subplot(111)
-        V = axV.imshow(self.V,origin='lower',
-                   extent=self.N_lle*np.array([-1,1,-1,1]))
-        cb = fig.colorbar(V,ax=axV)
         
 if __name__ == '__main__':
     filename = 'single_soliton_efficient.pkl'
+    # filename = 'single_mode.pkl'
     # filename = '20210629_1302/135.pkl'
+    # filename = 'comb.pkl'
+    dir_name = 'soliton_sweep_maybe'
+    files = [dir_name + '/'+'{}.pkl'.format(str(100*i+50).zfill(4)) for i in range(50)]
+    output_dir = 'data/Quantum Flux/'
     plt.close('all')
-    x = QuantumFlux(input_filename=filename)
-    x.calculateParams()
+    for filename in files:
+        print(filename)
+        x = QuantumFlux(input_filename=filename, output_dir=output_dir)
+        x.calculateParams()

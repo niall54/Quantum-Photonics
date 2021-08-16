@@ -17,7 +17,8 @@ class LLE_Solver:
                  alpha = -3,
                  beta = -0.005,
                  Pin = 2.7,
-                 psi0 = None):
+                 psi0 = None,
+                 kappas = None):
         """
         This object gives a solver for the Lugiato-Lefever equation (LLE). It
         takes "real-world" values for resonator parameters and converts them
@@ -56,7 +57,14 @@ class LLE_Solver:
         Pin : numeric, optional
             Dimensionless input power, normalised by the Kerr-comb generation
             threshold power. The default is 2.7.
-
+        psi0: list, optional
+            Initial cavity field, allowing for initialisation of a pulse. The 
+            default is None, which gives a constant value of 0.8 throughout the
+            cavity
+        kappas: list, optional
+            List of modal loss rates. Allows for independent losses to be 
+            assigned to different modes. Default of None gives unit losses in 
+            each.
         Returns
         -------
         None.
@@ -72,6 +80,10 @@ class LLE_Solver:
         self.n0 = n0 # Refraction index @ pump frequency
         self.Q0 = Q0 # Loaded Q-factor
         self.beta = beta # Dimensionless dispersion
+        if kappas is None:
+            self.kappas = 1
+        else:
+            self.kappas = kappas
         #=====================================================================
         # Pump input parameters
         self.alpha = alpha # Dimensionless cavity detuning
@@ -184,7 +196,8 @@ class LLE_Solver:
             prefix = 'data/LLE/'
             prefix += (timeInfo.strftime('%Y%m%d') + '_' 
             +  timeInfo.strftime('%H%M') + '/') 
-            os.makedirs(prefix)
+            if not os.path.isdir(prefix):
+                os.makedirs(prefix)
             
             
         # ====================================================================
@@ -220,7 +233,7 @@ class LLE_Solver:
             # Run simulation =================================================
             #=================================================================
             # Update linear operator fields
-            self.Lin_Op = np.exp((-(1 + 0.0+1.0j*self.alpha) + 
+            self.Lin_Op = np.exp((-(self.kappas + 0.0+1.0j*self.alpha) + 
                                   0.0+1.0j*self.beta*self.ell2/2)*self.htau)
             #=================================================================
             # Update cavity fields
@@ -251,7 +264,7 @@ class LLE_Solver:
                 savedIndex += 1
                 
             
-    def plot_self(self,axs=None):
+    def plot_self(self,axs=None,write_relPwr=False):
         if axs is None:
             fig = plt.figure()
             fig.subplots_adjust(hspace=0.4)
@@ -279,9 +292,16 @@ class LLE_Solver:
             psiPlot.append(np.nan)
             
         ax_modes.plot(modePlot,psiPlot,'k')
-        ax_modes.set_ylim([-20,5])
+        ax_modes.set_ylim([-30,5])
         ax_modes.set_xlabel('Mode number')
         ax_modes.set_ylabel('Modal intensity, dB')
+        
+        argMx = np.argmax(np.abs(self.psi_f)**2)
+        relPwr = np.abs(self.psi_f[argMx])**2/np.abs(self.psi_f[argMx+1])**2
+        if write_relPwr:
+            ax_modes.text(0.75,0.8,
+                          'Relative First Order Intensity:\n{:.2f}'.format(relPwr),
+                          transform=ax_modes.transAxes,fontsize='x-small')
         
     def save_self(self, filename):
         with open(filename, 'wb') as output:  # Overwrites any existing file.
@@ -356,27 +376,31 @@ def load_previous(filename):
 if __name__ == '__main__':
     import matplotlib as mpl
     mpl.rcParams['figure.dpi'] = 300
-    # Now lets try the solver where none of the parameters change, but we see 
-    # how an initial square pulse changes over time (and try to make a 
-    # soliton)!
-    ##########################################################################
-    # Initial cavity field
-    psi0 = np.zeros((256),dtype=complex) # make zeros (NB fields are complex!)
-    psi0[100:150] += 1+0j # make square pulse
-    fig1 = plt.figure()
-    fig1.canvas.set_window_title('Initial cavity field')
-    ax1 = fig1.add_subplot(111)
-    ax1.plot(np.abs(psi0)**2)
-    ##########################################################################
-    # Make LLE Solver with psi0 as the initial cavity field, and given values
-    # of Pin and alpha (NB - I've just changed these until I get it to evolve
-    # into a soliton! This will be your job to do now with higher
-    # efficiencies)
-    Pin = 2.0 # input power
-    alpha = 2.0 # input detuning
-    x = LLE_Solver(Pin=Pin, alpha=alpha, psi0=psi0)
-    ##########################################################################
-    # Run simulation
-    x.runSimulation(tauMax=500)
+    filename = 'data/LLE/single_soliton2.pkl'
+    
+    L = 50
+    
+    N = 128
+    alpha = 2.8
+    Pin = 3.5
+    beta = -8*np.pi**2/L**2
+    psi0 = np.zeros((N),dtype=complex) # make zeros (NB fields are complex!)
+    psi0[60:70] += 12+0j # make square pulse
+    pwr=12
+    for i in range(N):
+        psi0[i] = pwr*1/(1+(i-N/2)**2)
+    kappas = 0.8*np.ones((N))
+    kappas[64]=2.75
+    # x = LLE_Solver(N = N,
+    #                alpha = alpha,
+    #                beta  = beta,
+    #                Pin = Pin,
+    #                psi0 = psi0,
+    #                kappas = kappas)
+    x = load_previous(filename)
+    # x.updateParameter(tau=0,kappas=kappas,Pin=3.75)
+    # x.runSimulation(tauMax=100,
+    #                addRand = False,
+    #                saveData=False)
+    x.psi_f[64] *= 1e-1
     x.plot_self()
-    # Cool - looking at the output we have a 4 soliton state

@@ -59,7 +59,7 @@ class QuantumFlux:
         # Chembo and Quantum Correlation papers
         # Set directory to save object info to
         self.output_dir = output_dir
-        self.make_outputDir()
+        # self.make_outputDir()
         
     def make_outputDir(self):
         outputDir_addon = self.input_filename.split('/')[:-1]
@@ -238,7 +238,7 @@ class QuantumFlux:
         **********************************************************************
 
         """
-        self.D = np.eye(self.N) * self.kappa**2 /2**0.5 # Noise matrix
+        self.D = np.eye(self.N) * self.kappa**2 # Noise matrix
         
     def makeCouplingMatrix(self):
         """
@@ -335,11 +335,11 @@ class QuantumFlux:
                     if N_1 in range(N):
                         S_lp[i,j] += 1.0j* self.g0 * self.alpha[k] * self.alpha[N_1]
                         
-        A = np.sqrt(1/2)*np.real(np.conj(R_lp) + S_lp)
-        B = np.sqrt(1/2)*np.imag(np.conj(R_lp) + S_lp)
-        C = -np.sqrt(1/2)*np.imag(np.conj(R_lp) - S_lp)
-        D = np.sqrt(1/2)*np.real(np.conj(R_lp) - S_lp)
-        # A, B, C, D = np.real(R_lp)/2**0.5, np.imag(R_lp)/2**0.5, np.real(S_lp)/2**0.5, np.imag(S_lp)/2**0.5
+        A = np.real(np.conj(R_lp) + S_lp)
+        B = np.imag(np.conj(R_lp) + S_lp)
+        C = -np.imag(np.conj(R_lp) - S_lp)
+        D = np.real(np.conj(R_lp) - S_lp)
+        
         self.mats_2 = [A, B, C, D]
         
         self.M = ( np.kron(A,np.array([[1,0],[0,0]]))
@@ -481,13 +481,13 @@ class QuantumFlux:
         
         
 if __name__ == '__main__':
-    filename = 'single_soliton_efficient.pkl'
+    filename = 'single_soliton2.pkl'
     # filename = 'single_mode.pkl'
     # filename = '20210629_1302/135.pkl'
     # filename = 'comb.pkl'
-    dir_name = 'soliton_sweep_maybe'
-    files = [dir_name + '/'+'{}.pkl'.format(str(100*i+50).zfill(4)) for i in range(50)]
-    output_dir = 'data/Quantum Flux/'
+    dir_name = ''
+    files = [dir_name + filename]
+    output_dir = ''
     plt.close('all')
     for filename in files:
         print(filename)

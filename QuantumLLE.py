@@ -37,10 +37,10 @@ class QuantumLLE:
             self.LLE_Soln.__dict__[param] = self.LLE_Soln.__dict__[param][1:]
             
         self.LLE_Soln.N -= 1
-      
+        
     def dimensionalise_values(self,
                               Pin = 1e-5,
-                              rho = 0.999):
+                              rho = 0.99):
         """
         
         Returns
@@ -48,24 +48,24 @@ class QuantumLLE:
         None.
 
         """
-        self.rho = rho
         # Switch from linewidth to loss rate
         self.kappa_tot = self.LLE_Soln.dw0/2 # Switch from linewidth to kappa
         # Change the detuning/dispersion terms
         self.sigma = -self.LLE_Soln.alpha * self.kappa_tot
         self.zeta2 = -self.LLE_Soln.beta * self.kappa_tot
+        
         # Find the nonlinear coupling g0 from the input power
         hbar = 6.62607015e-34 # reduced planks constant
         c = 299792458 # speed of light in vacuum
         N_in = Pin/(hbar*c/self.LLE_Soln.lam0) # input photon flux/s
-        self.g0 = (self.LLE_Soln.fExt**2 *self.kappa_tot**2 /
+        self.g0 = -(self.LLE_Soln.fExt**2 *self.kappa_tot**2 /
                    (2*rho*N_in))
         # Find the photon number-normalised field, A
-        self.A_f = self.LLE_Soln.psi_f * np.sqrt(self.kappa_tot/self.g0)
+        self.A_f = self.LLE_Soln.psi_f * np.lib.scimath.sqrt(
+            self.kappa_tot/self.g0)
         
     def makeFieldMatrices(self):
         """
-        
 
         Returns
         -------
@@ -112,19 +112,24 @@ class QuantumLLE:
         None.
 
         """
+        R_real = np.real(self.R)
+        R_imag = np.imag(self.R)
+        S_real = np.real(self.S)
+        S_imag = np.imag(self.S)
         
-        self.A = (np.kron(np.array([[1,0],[0,0]]), 
-                         np.real(np.conj(self.R)+self.S)) + 
-                  np.kron(np.array([[0,1],[0,0]]), 
-                         np.imag(np.conj(self.R)+self.S)) +
-                  np.kron(np.array([[0,0],[1,0]]), 
-                         -np.imag(np.conj(self.R)-self.S)) + 
-                  np.kron(np.array([[0,0],[0,1]]), 
-                         np.real(np.conj(self.R)-self.S)))
+        mat1 = R_real + S_real
+        mat2 = -R_imag + S_imag
+        mat3 = R_imag + S_imag
+        mat4 = R_real - S_real
         
-        self.D = (np.eye(len(self.A[0])) * 
-                  np.sqrt(self.kappa_tot*(
-                      1+2*np.sqrt(self.rho*(1-self.rho)))))
+        self.A = (np.kron(np.array([[1,0],[0,0]]), mat1) + 
+                  np.kron(np.array([[0,1],[0,0]]), mat2) +
+                  np.kron(np.array([[0,0],[1,0]]), mat3) + 
+                  np.kron(np.array([[0,0],[0,1]]), mat4))
+        
+        self.D = np.eye(len(self.A[0])) * self.kappa_tot
+        
+
         
     def solveCorrelationMatrix(self):
         """
@@ -157,30 +162,35 @@ class QuantumLLE:
             print('\rCalculating entanglement matrix, E: {:.2f}%'.format(
                 100*i/N), end="")
             for j in range(N):
-                # Get the sub-correlation matrices
-                A = np.array([[self.V[i,i], self.V[i+N,i]],
-                              [self.V[i,i+N], self.V[i+N,i+N]]])
-                
-                B = np.array([[self.V[j,j], self.V[j+N,j]],
-                              [self.V[j,j+N], self.V[j+N,j+N]]])
-                
-                C = np.array([[self.V[i,j], self.V[i+N,j]],
-                              [self.V[i,j+N], self.V[i+N,j+N]]])
-                # Put matrices together
-                v_ij = (np.kron(np.array([[1,0],[0,0]]), A) + 
-                        np.kron(np.array([[0,1],[0,0]]), C) +
-                        np.kron(np.array([[0,0],[1,0]]), np.transpose(C)) + 
-                        np.kron(np.array([[0,0],[0,1]]), B))
-                # Calculate entanglement parameter
-                sumV = (np.linalg.det(A) + np.linalg.det(B) - 
-                        2*np.linalg.det(C))
-                detV = np.linalg.det(v_ij)
-                
-                eta_ij = 2**-0.5*np.sqrt(sumV - np.sqrt(sumV**2 - 4*detV))
-                
-                entVal = -np.log(2*eta_ij)
-                if entVal>0:
-                    self.E[i,j] = entVal
+                if i != j:
+                    # Get the sub-correlation matrices
+                    A = np.array([[self.V[i,i], self.V[i+N,i]],
+                                  [self.V[i,i+N], self.V[i+N,i+N]]])
+                    
+                    B = np.array([[self.V[j,j], self.V[j+N,j]],
+                                  [self.V[j,j+N], self.V[j+N,j+N]]])
+                    
+                    C = np.array([[self.V[i,j], self.V[i+N,j]],
+                                  [self.V[i,j+N], self.V[i+N,j+N]]])
+                    
+                    C_pr = np.array([[self.V[j,i], self.V[j+N,i]],
+                                  [self.V[j,i+N], self.V[j+N,i+N]]])
+                    
+                    # Put matrices together
+                    v_ij = (np.kron(np.array([[1,0],[0,0]]), A) + 
+                            np.kron(np.array([[0,1],[0,0]]), C) +
+                            np.kron(np.array([[0,0],[1,0]]), np.transpose(C)) + 
+                            np.kron(np.array([[0,0],[0,1]]), B))
+                    # Calculate entanglement parameter
+                    sumV = (np.linalg.det(A) + np.linalg.det(B) - 
+                            2*np.linalg.det(C))
+                    detV = np.linalg.det(v_ij)
+                        
+                    eta_ij = np.sqrt(sumV - np.sqrt(sumV**2 - 4*detV))*2**-0.5
+                    
+                    entVal = -np.log(2*eta_ij)
+                    if entVal>0:
+                        self.E[i,j] = entVal
                     
         fig = plt.figure()
         ax3 = fig.add_subplot(111)
@@ -190,7 +200,8 @@ class QuantumLLE:
         ax3.set_title('Entanglement Matrix, $E$')
         
                 
-                
 if __name__ == '__main__':
-    lle_file = 'data/LLE/single_soliton2.pkl'
+    plt.close('all')
+    lle_file = 'data/LLE/single_soliton.pkl'
+    lle_file = 'turing_rolls_19.pkl'
     x = QuantumLLE(lle_file=lle_file)

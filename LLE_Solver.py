@@ -1,4 +1,5 @@
 import os
+import cv2
 import pickle
 import datetime
 import numpy as np
@@ -150,7 +151,8 @@ class LLE_Solver:
                       addRand = True,
                       updateParams = None,
                       saveData = True,
-                      saveRate = 100):
+                      saveRate = 100,
+                      makeAnimation = False):
         """
         This method runs a simulation using the current object properties. A
         sweep - e.g. of the input frequency to simulate a frequency sweep 
@@ -177,7 +179,8 @@ class LLE_Solver:
         saveRate: int, optional
             This gives the rate at which the data is saved, in simulation 
             time-steps
-
+        makeAnimation: bool, optional
+            If true, it saves a video of the simulation
         Returns
         -------
         None.
@@ -233,7 +236,7 @@ class LLE_Solver:
             # Run simulation =================================================
             #=================================================================
             # Update linear operator fields
-            self.Lin_Op = np.exp((-(self.kappas + 0.0+1.0j*self.alpha) + 
+            self.Lin_Op = np.exp((-(self.kappas - 0.0+1.0j*self.alpha) - 
                                   0.0+1.0j*self.beta*self.ell2/2)*self.htau)
             #=================================================================
             # Update cavity fields
@@ -262,6 +265,12 @@ class LLE_Solver:
                 self.save_self(filename = prefix+'{}.pkl'.format(
                     str(savedIndex).zfill(numSaves)))
                 savedIndex += 1
+            if (saveIndex % saveRate == 0) and makeAnimation:
+                self.make_animation()
+                
+        if makeAnimation: # close video object
+            cv2.destroyAllWindows()
+            self.video.release()
                 
             
     def plot_self(self,axs=None,write_relPwr=False):
@@ -296,13 +305,48 @@ class LLE_Solver:
         ax_modes.set_xlabel('Mode number')
         ax_modes.set_ylabel('Modal intensity, dB')
         
-        argMx = np.argmax(np.abs(self.psi_f)**2)
-        relPwr = np.abs(self.psi_f[argMx])**2/np.abs(self.psi_f[argMx+1])**2
         if write_relPwr:
+            argMx = np.argmax(np.abs(self.psi_f)**2)
+            relPwr = np.abs(self.psi_f[argMx])**2/np.abs(self.psi_f[argMx+1])**2
             ax_modes.text(0.75,0.8,
                           'Relative First Order Intensity:\n{:.2f}'.format(relPwr),
                           transform=ax_modes.transAxes,fontsize='x-small')
         
+    def make_animation(self):
+        """
+        
+
+        Returns
+        -------
+        None.
+
+        """
+        if not hasattr(self, 'animationInitiated'):
+            # initiate animation variables
+            self.animationInitiated = True
+            # matplotlib variables
+            self.anim_fig = plt.figure()
+            anim_ax1 = self.anim_fig.add_subplot(211)
+            anim_ax2 = self.anim_fig.add_subplot(212)
+            self.anim_axes = [anim_ax1, anim_ax2]
+            # make first frame
+            self.plot_self(self.anim_axes)
+            self.anim_fig.savefig('tmp.png')
+            # animation variables
+            
+            frame = cv2.imread('tmp.png')
+            height, width, layers = frame.shape
+            
+            self.video = cv2.VideoWriter('anim.mp4', 0, 20, (width,height))
+        else:
+            for ax in self.anim_axes:
+                ax.lines = []
+            self.plot_self(self.anim_axes)
+            self.anim_fig.savefig('tmp.png')
+            self.video.write(cv2.imread('tmp.png'))
+    
+            
+            
     def save_self(self, filename):
         with open(filename, 'wb') as output:  # Overwrites any existing file.
             pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
@@ -375,32 +419,12 @@ def load_previous(filename):
         
 if __name__ == '__main__':
     import matplotlib as mpl
+    plt.close('all')
     mpl.rcParams['figure.dpi'] = 300
-    filename = 'data/LLE/single_soliton2.pkl'
-    
-    L = 50
-    
+    filename = 'data/LLE/three_modes.pkl'
     N = 128
-    alpha = 2.8
-    Pin = 3.5
-    beta = -8*np.pi**2/L**2
-    psi0 = np.zeros((N),dtype=complex) # make zeros (NB fields are complex!)
-    psi0[60:70] += 12+0j # make square pulse
-    pwr=12
-    for i in range(N):
-        psi0[i] = pwr*1/(1+(i-N/2)**2)
-    kappas = 0.8*np.ones((N))
-    kappas[64]=2.75
-    # x = LLE_Solver(N = N,
-    #                alpha = alpha,
-    #                beta  = beta,
-    #                Pin = Pin,
-    #                psi0 = psi0,
-    #                kappas = kappas)
-    x = load_previous(filename)
-    # x.updateParameter(tau=0,kappas=kappas,Pin=3.75)
-    # x.runSimulation(tauMax=100,
-    #                addRand = False,
-    #                saveData=False)
-    x.psi_f[64] *= 1e-1
-    x.plot_self()
+    psi0 = 1e-6*np.ones((N),dtype=complex) # make zeros (NB fields are complex!)
+    psi0[89:90] += 24+0j # make square pulse
+    
+    x = LLE_Solver(alpha=1.5,N=N,beta=-0.0125, Pin=1.71**2,psi0=psi0)
+    x.runSimulation(saveData=False, addRand=False, makeAnimation=False)
